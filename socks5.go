@@ -178,8 +178,6 @@ type Socks5Resolution struct {
 }
 
 func (s *Socks5Resolution) LSTRequest(b []byte) ([]byte, error) {
-	// b := make([]byte, 128)
-	// n, err := conn.Read(b)
 	n := len(b)
 	if n < 7 {
 		return nil, errors.New("请求协议错误")
@@ -232,7 +230,6 @@ func (s *Socks5Resolution) LSTRequest(b []byte) ([]byte, error) {
 	      +----+-----+-------+------+----------+----------+
 	*/
 	resp := []byte{SOCKS_VERSION, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
-	// conn.Write(resp)
 
 	return resp, nil
 }

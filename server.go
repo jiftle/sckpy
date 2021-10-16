@@ -15,10 +15,14 @@ func handleClientRequest(client *net.TCPConn, auth socks5Auth) {
 	// 初始化一个字符串buff
 	buff := make([]byte, 255)
 
-	// 认证协商
+	// --------------- 认证协商 ----------------
 	var proto ProtocolVersion
 	n, err := auth.DecodeRead(client, buff) //解密
+
+	// handshake
 	resp, err := proto.HandleHandshake(buff[0:n])
+
+	// write to client
 	auth.EncodeWrite(client, resp) //加密
 	if err != nil {
 		log.Print(client.RemoteAddr(), err)
@@ -29,21 +33,23 @@ func handleClientRequest(client *net.TCPConn, auth socks5Auth) {
 	var request Socks5Resolution
 	n, err = auth.DecodeRead(client, buff)
 	resp, err = request.LSTRequest(buff[0:n])
+
 	auth.EncodeWrite(client, resp)
 	if err != nil {
 		log.Print(client.RemoteAddr(), err)
 		return
 	}
 
-	log.Println(client.RemoteAddr(), request.DSTDOMAIN, request.DSTADDR, request.DSTPORT)
+	log.Printf("%s, %s, %v, %d", client.RemoteAddr().String(), request.DSTDOMAIN, request.DSTADDR, request.DSTPORT)
 
 	// 连接真正的远程服务
 	dstServer, err := net.DialTCP("tcp", nil, request.RAWADDR)
 	if err != nil {
-		log.Print(client.RemoteAddr(), err)
+		log.Printf("------> 连接服务端[%s]失败, %s", request.RAWADDR.String(), err.Error())
 		return
 	}
 	defer dstServer.Close()
+	log.Printf("------> 连接服务端[%s]成功", request.RAWADDR.String())
 
 	wg := new(sync.WaitGroup)
 	wg.Add(2)
