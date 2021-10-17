@@ -8,11 +8,11 @@ import (
 )
 
 func main() {
-	listenAddr := flag.String("local", ":8888", "Input server listen address(Default 8888):")
+	listenAddr := flag.String("port", ":1080", "Input server listen address(Default 8888):")
 	serverAddr := flag.String("server", "", "Input server listen address:")
 	passwd := flag.String("passwd", "123456", "Input server proxy password:")
 	encrytype := flag.String("type", "random", "Input encryption type:")
-	recvHTTPProto := flag.String("recv", "http", "use http or sock5 protocol(default http):")
+	recvHTTPProto := flag.String("recv", "sock5", "use http or sock5 protocol(default sock5):")
 
 	flag.Parse()
 	if *serverAddr == "" {
