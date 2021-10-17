@@ -52,7 +52,6 @@ func Client(listenAddrString string, serverAddrString string, encrytype string, 
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Printf("---> 你的密码是: %s ,请保管好你的密码", passwd)
 
 	// proxy地址
 	serverAddr, err := net.ResolveTCPAddr("tcp", serverAddrString)
@@ -69,7 +68,7 @@ func Client(listenAddrString string, serverAddrString string, encrytype string, 
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Printf("---> server port: %v, proto: %v", listenAddrString, recvHTTPProto)
+	log.Printf("[INFO] server port: %v, proto: %v", listenAddrString, recvHTTPProto)
 
 	for {
 		localClient, err := listener.AcceptTCP()

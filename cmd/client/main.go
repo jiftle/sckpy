@@ -16,7 +16,8 @@ func main() {
 
 	flag.Parse()
 	if *serverAddr == "" {
-		log.Fatal("---> 请输入正确的远程地址")
+		flag.PrintDefaults()
+		log.Fatal("[ERROR] 请输入服务器地址")
 	}
 
 	socks5proxy.Client(*listenAddr, *serverAddr, *encrytype, *passwd, *recvHTTPProto)
