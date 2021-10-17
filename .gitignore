@@ -12,7 +12,5 @@
 *.out
 go.sum
 
-server
-client
 
 *.swp
