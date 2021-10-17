@@ -3,6 +3,7 @@ package socks5proxy
 import (
 	"errors"
 	"io"
+	"log"
 )
 
 const (
@@ -145,12 +146,131 @@ func CreateAuth(encrytype string, passwd string) (socks5Auth, error) {
 
 // 加密io复制，可接收加密函数作为参数
 func SecureCopy(src io.ReadWriteCloser, dst io.ReadWriteCloser, secure func(b []byte) error) (written int64, err error) {
+	// --------------------------- sock5 -----------------------
+	//var request Socks5Resolution
+	//n, err = auth.DecodeRead(client, buff)
+	//resp, err = request.LSTRequest(buff[0:n])
+	i := 0
 	size := 1024
 	buf := make([]byte, size)
 	for {
+		i++
+
+		// --------- read buf from client ---------
 		nr, er := src.Read(buf)
+		//log.Printf("--[%02d]-->len=%d", i, nr)
+		if i == 1 {
+			log.Printf("-[%02d]->len=%d, %v", i, nr, buf[:nr])
+		} else if i == 2 {
+			log.Printf("-[%02d]->len=%d, %v", i, nr, buf[:nr])
+		} else if i == 3 {
+			log.Printf("-[%02d]->len=%d, %v", i, nr, buf[:nr])
+		} else if i == 4 {
+			log.Printf("-[%02d]->len=%d, %v", i, nr, buf[:nr])
+		} else {
+			log.Printf("--->len=%d", nr)
+		}
+
+		// ------------ encrypt data
 		secure(buf)
 		if nr > 0 {
+			// -------------- write buf to server -----------
+			nw, ew := dst.Write(buf[0:nr])
+			if nw > 0 {
+				written += int64(nw)
+			}
+			if ew != nil {
+				err = ew
+				break
+			}
+			if nr != nw {
+				err = io.ErrShortWrite
+				break
+			}
+		}
+		if er != nil {
+			if er != io.EOF {
+				err = er
+			}
+			break
+		}
+	}
+	return written, err
+}
+
+// 加密io复制，可接收加密函数作为参数
+func SecureCopy_Client2Server(src io.ReadWriteCloser, dst io.ReadWriteCloser, secure func(b []byte) error) (written int64, err error) {
+	i := 0
+	size := 1024
+	buf := make([]byte, size)
+	for {
+		i++
+
+		// --------- read buf from client ---------
+		nr, er := src.Read(buf)
+		if i == 1 {
+			//log.Printf("---|c2s|--[%02d]->len=%d, %v", i, nr, buf[:nr])
+		} else if i == 2 {
+			//log.Printf("---|c2s|--[%02d]->len=%d, %v", i, nr, buf[:nr])
+			var sock5Resolve Socks5Resolution
+			_, err = sock5Resolve.LSTRequest(buf[:nr])
+			if err != nil {
+				log.Printf("[WARN] data package resolve fail, %v", err)
+			}
+			log.Printf("[INFO] %s:%d", sock5Resolve.DSTDOMAIN, sock5Resolve.DSTPORT)
+			//} else if i == 3 {
+			//log.Printf("---|c2s|--[%02d]->len=%d, %v", i, nr, buf[:nr])
+		}
+
+		// ------------ encrypt data
+		secure(buf)
+		if nr > 0 {
+			// -------------- write buf to server -----------
+			nw, ew := dst.Write(buf[0:nr])
+			if nw > 0 {
+				written += int64(nw)
+			}
+			if ew != nil {
+				err = ew
+				break
+			}
+			if nr != nw {
+				err = io.ErrShortWrite
+				break
+			}
+		}
+		if er != nil {
+			if er != io.EOF {
+				err = er
+			}
+			break
+		}
+	}
+	return written, err
+}
+
+// 加密io复制，可接收加密函数作为参数
+func SecureCopy_Server2Client(src io.ReadWriteCloser, dst io.ReadWriteCloser, secure func(b []byte) error) (written int64, err error) {
+	// --------------------------- sock5 -----------------------
+	i := 0
+	size := 1024
+	buf := make([]byte, size)
+	for {
+		i++
+
+		// --------- read buf from client ---------
+		nr, er := src.Read(buf)
+		// ------------ encrypt data
+		secure(buf)
+
+		//if i == 1 {
+		//log.Printf("---|s2c|-[%02d]->len=%d, %v", i, nr, buf[:nr])
+		//} else if i == 2 {
+		//log.Printf("---|s2c|-[%02d]->len=%d, %v", i, nr, buf[:nr])
+		//}
+
+		if nr > 0 {
+			// -------------- write buf to server -----------
 			nw, ew := dst.Write(buf[0:nr])
 			if nw > 0 {
 				written += int64(nw)
