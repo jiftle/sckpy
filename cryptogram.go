@@ -274,3 +274,75 @@ func SecureCopy_Server2Client(src io.ReadWriteCloser, dst io.ReadWriteCloser, se
 	}
 	return written, err
 }
+
+func SockCopy_C2S(src io.ReadWriteCloser, dst io.ReadWriteCloser) (written int64, err error) {
+	i := 0
+	size := 1024
+	buf := make([]byte, size)
+	for {
+		i++
+
+		// --------- read buf from client ---------
+		nr, er := src.Read(buf)
+		if nr > 0 {
+			//log.Printf("c->s, [%03d], len=%d, %v", i, nr, buf[0:nr])
+			// -------------- write buf to server -----------
+			nw, ew := dst.Write(buf[0:nr])
+			if nw > 0 {
+				written += int64(nw)
+			}
+			if ew != nil {
+				err = ew
+				break
+			}
+			if nr != nw {
+				err = io.ErrShortWrite
+				break
+			}
+		}
+		if er != nil {
+			if er != io.EOF {
+				err = er
+			}
+			break
+		}
+	}
+
+	return written, err
+}
+
+func SockCopy_S2C(src io.ReadWriteCloser, dst io.ReadWriteCloser) (written int64, err error) {
+	i := 0
+	size := 1024
+	buf := make([]byte, size)
+	for {
+		i++
+
+		// --------- read buf from client ---------
+		nr, er := src.Read(buf)
+		if nr > 0 {
+			//log.Printf("s->c, [%03d], len=%d, %v", i, nr, buf[0:nr])
+			// -------------- write buf to server -----------
+			nw, ew := dst.Write(buf[0:nr])
+			if nw > 0 {
+				written += int64(nw)
+			}
+			if ew != nil {
+				err = ew
+				break
+			}
+			if nr != nw {
+				err = io.ErrShortWrite
+				break
+			}
+		}
+		if er != nil {
+			if er != io.EOF {
+				err = er
+			}
+			break
+		}
+	}
+
+	return written, err
+}
