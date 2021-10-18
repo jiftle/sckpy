@@ -73,10 +73,10 @@ func Client(listenAddrString string, serverAddrString string, encrytype string, 
 	for {
 		localClient, err := listener.AcceptTCP()
 		if err != nil {
-			log.Fatal(err)
+			log.Printf("[ERROR] accept tcp connect fail, %v", err)
+		} else {
+			// 处理代理请求
+			go handleProxyRequest(localClient, serverAddr, auth, recvHTTPProto)
 		}
-
-		// 处理代理请求
-		go handleProxyRequest(localClient, serverAddr, auth, recvHTTPProto)
 	}
 }
