@@ -78,7 +78,7 @@ func handleProxyRequest_Direct(localClient *net.TCPConn, serverAddr *net.TCPAddr
 	// connet real server
 	dstServer, err := net.DialTCP("tcp", nil, serverAddr)
 	if err != nil {
-		log.Printf("---> 服务器[%s]连接失败, %v", serverAddr.String(), err)
+		log.Printf("[ERROR] connect %s fail, %v", serverAddr.String(), err)
 		return
 	}
 	defer dstServer.Close()
@@ -173,7 +173,8 @@ func handleProxyRequest(localClient *net.TCPConn, serverAddr *net.TCPAddr, auth 
 		log.Printf("[INFO] direct, %v", serverAddrString)
 		serverAddr, err := net.ResolveTCPAddr("tcp", serverAddrString)
 		if err != nil {
-			log.Fatal(err)
+			log.Printf("[ERROR] resolve domain fail, %v", err)
+			return
 		}
 		//log.Printf("connect [%s]", serverAddr.String())
 		handleProxyRequest_Direct(src, serverAddr, auth, recvHTTPProto)
@@ -184,7 +185,7 @@ func handleProxyRequest(localClient *net.TCPConn, serverAddr *net.TCPAddr, auth 
 		// connect sckpy server
 		dstServer, err := net.DialTCP("tcp", nil, serverAddr)
 		if err != nil {
-			log.Printf("---> 服务器[%s]连接失败, %v", serverAddr.String(), err)
+			log.Printf("[ERROR] connect %s fail, %v", serverAddr.String(), err)
 			return
 		}
 
@@ -263,6 +264,8 @@ func GetProxyType(domain string) int {
 	} else if strings.Contains(domain, "csdnimg.cn") {
 		return 2
 	} else if strings.Contains(domain, "cnblogs.com") {
+		return 2
+	} else if strings.Contains(domain, "github.com") {
 		return 2
 	} else if strings.Contains(domain, "googleapis.com") {
 		return 2
