@@ -12,17 +12,10 @@ type TcpClient struct {
 	server *net.TCPAddr
 }
 
-func handleProxyRequest(localClient *net.TCPConn, serverAddr *net.TCPAddr, auth socks5Auth, recvHTTPProto string) {
+func handleProxyRequest_Proxy(localClient *net.TCPConn, dstServer *net.TCPConn, auth socks5Auth, recvHTTPProto string) {
 
-	// 远程连接IO
-	dstServer, err := net.DialTCP("tcp", nil, serverAddr)
-	if err != nil {
-		log.Printf("---> 服务器[%s]连接失败, %v", serverAddr.String(), err)
-		return
-	}
 	defer dstServer.Close()
 	defer localClient.Close()
-	//log.Printf("---> 连接远程服务器[%s] ....", serverAddr.String())
 
 	// 和远程端建立安全信道
 	wg := new(sync.WaitGroup)
@@ -31,7 +24,7 @@ func handleProxyRequest(localClient *net.TCPConn, serverAddr *net.TCPAddr, auth 
 	// -----------> 本地的内容copy到远程端
 	go func() {
 		defer wg.Done()
-		SecureCopy_Client2Server(localClient, dstServer, auth.Encrypt)
+		SecureCopyNew_Client2Server(localClient, dstServer, auth.Encrypt)
 	}()
 
 	// ------------> 远程得到的内容copy到源地址
@@ -74,69 +67,13 @@ func Client(listenAddrString string, serverAddrString string, encrytype string, 
 			log.Printf("[ERROR] accept tcp connect fail, %v", err)
 		} else {
 			// 处理代理请求
-			// go handleProxyRequest(localClient, serverAddr, auth, recvHTTPProto)
-			go handleProxyRequest_Direct(localClient, serverAddr, auth, recvHTTPProto)
+			go handleProxyRequest(localClient, serverAddr, auth, recvHTTPProto)
+			//go handleProxyRequest_Direct(localClient, serverAddr, auth, recvHTTPProto)
 		}
 	}
 }
 
 func handleProxyRequest_Direct(localClient *net.TCPConn, serverAddr *net.TCPAddr, auth socks5Auth, recvHTTPProto string) {
-	var serverAddrString string
-
-	src := localClient
-	i := 0
-	size := 1024
-	buf := make([]byte, size)
-
-	for {
-		i++
-
-		// --------- read buf from client ---------
-		nr, err := src.Read(buf)
-		if err != nil {
-			log.Printf("[WARN] read src data pack fail, %v", err)
-			break
-		}
-
-		if i == 1 {
-			//log.Printf("c->s, [%02d], len=%d, %v", i, nr, buf[:nr])
-			// --------------- 认证协商 ----------------
-			var proto ProtocolVersion
-
-			// handshake
-			resp, err := proto.HandleHandshake(buf[0:nr])
-			if err != nil {
-				log.Printf("[WARN] handshake fail, %v", err)
-				break
-			}
-
-			src.Write(resp)
-
-		} else if i == 2 {
-			//log.Printf("c->s, [%02d], len=%d, %v", i, nr, buf[:nr])
-			var sock5Resolve Socks5Resolution
-			resp, err := sock5Resolve.LSTRequest(buf[:nr])
-			if err != nil {
-				log.Printf("[WARN] data package resolve fail, %v", err)
-				break
-			}
-			log.Printf("[INFO] %s:%d", sock5Resolve.DSTDOMAIN, sock5Resolve.DSTPORT)
-			src.Write(resp)
-
-			// ---------------- read data handler -----------------
-			serverAddrString = fmt.Sprintf("%s:%d", sock5Resolve.DSTDOMAIN, sock5Resolve.DSTPORT)
-
-			break
-		} else {
-			log.Printf("--fuck-|c2s|--[%02d]->len=%d, %v", i, nr, buf[:nr])
-		}
-	}
-
-	serverAddr, err := net.ResolveTCPAddr("tcp", serverAddrString)
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	// connet real server
 	dstServer, err := net.DialTCP("tcp", nil, serverAddr)
 	if err != nil {
@@ -163,4 +100,131 @@ func handleProxyRequest_Direct(localClient *net.TCPConn, serverAddr *net.TCPAddr
 	}()
 	wg.Wait()
 
+}
+
+func handleProxyRequest(localClient *net.TCPConn, serverAddr *net.TCPAddr, auth socks5Auth, recvHTTPProto string) {
+	var serverAddrString string
+
+	src := localClient
+	i := 0
+	size := 1024
+	buf := make([]byte, size)
+
+	var handshake_buf_step1 []byte
+	var handshake_buf_step2 []byte
+
+	for {
+		i++
+
+		// --------- read buf from client ---------
+		nr, err := src.Read(buf)
+		if err != nil {
+			log.Printf("[WARN] read src data pack fail, %v", err)
+			break
+		}
+
+		if i == 1 {
+			//log.Printf("c->s, [%02d], len=%d, %v", i, nr, buf[:nr])
+			// --------------- 认证协商 ----------------
+			var proto ProtocolVersion
+
+			// handshake
+			resp, err := proto.HandleHandshake(buf[0:nr])
+			if err != nil {
+				log.Printf("[WARN] handshake fail, %v", err)
+				break
+			}
+			handshake_buf_step1 = make([]byte, nr)
+			copy(handshake_buf_step1, buf[0:nr])
+			//handshake_buf_step1 = buf[0:nr]
+
+			src.Write(resp)
+
+		} else if i == 2 {
+			log.Printf("c->s, [%02d], len=%d, %v", i, nr, buf[:nr])
+			//handshake_buf_step2 = buf[:nr]
+			handshake_buf_step2 = make([]byte, nr)
+			copy(handshake_buf_step2, buf[0:nr])
+
+			var sock5Resolve Socks5Resolution
+			resp, err := sock5Resolve.LSTRequest(buf[:nr])
+			if err != nil {
+				log.Printf("[WARN] data package resolve fail, %v", err)
+				break
+			}
+			log.Printf("[INFO] %s:%d", sock5Resolve.DSTDOMAIN, sock5Resolve.DSTPORT)
+			src.Write(resp)
+
+			// ---------------- read data handler -----------------
+			serverAddrString = fmt.Sprintf("%s:%d", sock5Resolve.DSTDOMAIN, sock5Resolve.DSTPORT)
+
+			break
+		} else {
+			log.Printf("--fuck-|c2s|--[%02d]->len=%d, %v", i, nr, buf[:nr])
+		}
+	}
+
+	proxyType := GetProxyType(serverAddrString)
+	if proxyType == 2 {
+		serverAddr, err := net.ResolveTCPAddr("tcp", serverAddrString)
+		if err != nil {
+			log.Fatal(err)
+		}
+		//log.Printf("connect [%s]", serverAddr.String())
+		handleProxyRequest_Direct(src, serverAddr, auth, recvHTTPProto)
+	} else if proxyType == 1 {
+
+		//log.Printf("connect [%s]", serverAddr.String())
+		// connect sckpy server
+		dstServer, err := net.DialTCP("tcp", nil, serverAddr)
+		if err != nil {
+			log.Printf("---> 服务器[%s]连接失败, %v", serverAddr.String(), err)
+			return
+		}
+
+		// -------------------- 与服务器进行sock5握手 ------------------
+		//step 1
+		buf = handshake_buf_step1
+		log.Printf("s1, %v", buf)
+		auth.Encrypt(buf)
+		log.Printf("s1, enc, %v", buf)
+		_, err = dstServer.Write(buf)
+		if err != nil {
+			log.Printf("[ERROR] handshake step1 to server fail, %v", err)
+			return
+		}
+		nr, err := dstServer.Read(buf)
+		if nr > 0 {
+			log.Printf("c->s, [%02d], len=%d, %v", i, nr, buf[:nr])
+			auth.Decrypt(buf)
+			log.Printf("c->s, [%02d], len=%d, %v", i, nr, buf[:nr])
+		}
+
+		//step 2
+		buf = handshake_buf_step2
+		log.Printf("s2, %v", buf)
+		auth.Encrypt(buf)
+		log.Printf("s2, enc, %v", buf)
+		_, err = dstServer.Write(buf)
+		if err != nil {
+			log.Printf("[ERROR] handshake step2 to server fail, %v", err)
+			return
+		}
+		nr, err = dstServer.Read(buf)
+		if nr > 0 {
+			log.Printf("c->s, [%02d], len=%d, %v", i, nr, buf[:nr])
+			auth.Decrypt(buf)
+			log.Printf("c->s, [%02d], len=%d, %v", i, nr, buf[:nr])
+		}
+		handleProxyRequest_Proxy(src, dstServer, auth, recvHTTPProto)
+	}
+}
+
+func GetProxyType(domain string) int {
+	// 1 代理 2 不代理
+	if domain == "webalfa-cm10.dingtalk.com:443" {
+		return 2
+	} else {
+		return 1
+	}
 }
