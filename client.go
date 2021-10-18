@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"strings"
 	"sync"
 )
 
@@ -141,7 +142,7 @@ func handleProxyRequest(localClient *net.TCPConn, serverAddr *net.TCPAddr, auth 
 			src.Write(resp)
 
 		} else if i == 2 {
-			log.Printf("c->s, [%02d], len=%d, %v", i, nr, buf[:nr])
+			//log.Printf("c->s, [%02d], len=%d, %v", i, nr, buf[:nr])
 			//handshake_buf_step2 = buf[:nr]
 			handshake_buf_step2 = make([]byte, nr)
 			copy(handshake_buf_step2, buf[0:nr])
@@ -152,7 +153,7 @@ func handleProxyRequest(localClient *net.TCPConn, serverAddr *net.TCPAddr, auth 
 				log.Printf("[WARN] data package resolve fail, %v", err)
 				break
 			}
-			log.Printf("[INFO] %s:%d", sock5Resolve.DSTDOMAIN, sock5Resolve.DSTPORT)
+			//log.Printf("[INFO] %s:%d", sock5Resolve.DSTDOMAIN, sock5Resolve.DSTPORT)
 			src.Write(resp)
 
 			// ---------------- read data handler -----------------
@@ -166,6 +167,7 @@ func handleProxyRequest(localClient *net.TCPConn, serverAddr *net.TCPAddr, auth 
 
 	proxyType := GetProxyType(serverAddrString)
 	if proxyType == 2 {
+		log.Printf("[INFO] direct, %v", serverAddrString)
 		serverAddr, err := net.ResolveTCPAddr("tcp", serverAddrString)
 		if err != nil {
 			log.Fatal(err)
@@ -173,6 +175,7 @@ func handleProxyRequest(localClient *net.TCPConn, serverAddr *net.TCPAddr, auth 
 		//log.Printf("connect [%s]", serverAddr.String())
 		handleProxyRequest_Direct(src, serverAddr, auth, recvHTTPProto)
 	} else if proxyType == 1 {
+		log.Printf("[INFO] proxy, %v", serverAddrString)
 
 		//log.Printf("connect [%s]", serverAddr.String())
 		// connect sckpy server
@@ -185,9 +188,9 @@ func handleProxyRequest(localClient *net.TCPConn, serverAddr *net.TCPAddr, auth 
 		// -------------------- 与服务器进行sock5握手 ------------------
 		//step 1
 		buf = handshake_buf_step1
-		log.Printf("s1, %v", buf)
+		//log.Printf("s1, %v", buf)
 		auth.Encrypt(buf)
-		log.Printf("s1, enc, %v", buf)
+		//log.Printf("s1, enc, %v", buf)
 		_, err = dstServer.Write(buf)
 		if err != nil {
 			log.Printf("[ERROR] handshake step1 to server fail, %v", err)
@@ -195,16 +198,16 @@ func handleProxyRequest(localClient *net.TCPConn, serverAddr *net.TCPAddr, auth 
 		}
 		nr, err := dstServer.Read(buf)
 		if nr > 0 {
-			log.Printf("c->s, [%02d], len=%d, %v", i, nr, buf[:nr])
+			//log.Printf("c->s, [%02d], len=%d, %v", i, nr, buf[:nr])
 			auth.Decrypt(buf)
-			log.Printf("c->s, [%02d], len=%d, %v", i, nr, buf[:nr])
+			//log.Printf("c->s, [%02d], len=%d, %v", i, nr, buf[:nr])
 		}
 
 		//step 2
 		buf = handshake_buf_step2
-		log.Printf("s2, %v", buf)
+		//log.Printf("s2, %v", buf)
 		auth.Encrypt(buf)
-		log.Printf("s2, enc, %v", buf)
+		//log.Printf("s2, enc, %v", buf)
 		_, err = dstServer.Write(buf)
 		if err != nil {
 			log.Printf("[ERROR] handshake step2 to server fail, %v", err)
@@ -212,9 +215,9 @@ func handleProxyRequest(localClient *net.TCPConn, serverAddr *net.TCPAddr, auth 
 		}
 		nr, err = dstServer.Read(buf)
 		if nr > 0 {
-			log.Printf("c->s, [%02d], len=%d, %v", i, nr, buf[:nr])
+			//log.Printf("c->s, [%02d], len=%d, %v", i, nr, buf[:nr])
 			auth.Decrypt(buf)
-			log.Printf("c->s, [%02d], len=%d, %v", i, nr, buf[:nr])
+			//log.Printf("c->s, [%02d], len=%d, %v", i, nr, buf[:nr])
 		}
 		handleProxyRequest_Proxy(src, dstServer, auth, recvHTTPProto)
 	}
@@ -222,7 +225,9 @@ func handleProxyRequest(localClient *net.TCPConn, serverAddr *net.TCPAddr, auth 
 
 func GetProxyType(domain string) int {
 	// 1 代理 2 不代理
-	if domain == "webalfa-cm10.dingtalk.com:443" {
+
+	if strings.Contains(domain, "dingtalk.com") {
+		//if domain == "webalfa-cm10.dingtalk.com:443" {
 		return 2
 	} else {
 		return 1
