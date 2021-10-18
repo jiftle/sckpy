@@ -2,6 +2,7 @@ package socks5proxy
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"strings"
@@ -69,7 +70,6 @@ func Client(listenAddrString string, serverAddrString string, encrytype string, 
 		} else {
 			// 处理代理请求
 			go handleProxyRequest(localClient, serverAddr, auth, recvHTTPProto)
-			//go handleProxyRequest_Direct(localClient, serverAddr, auth, recvHTTPProto)
 		}
 	}
 }
@@ -120,8 +120,11 @@ func handleProxyRequest(localClient *net.TCPConn, serverAddr *net.TCPAddr, auth 
 		// --------- read buf from client ---------
 		nr, err := src.Read(buf)
 		if err != nil {
+			if err == io.EOF {
+				return
+			}
 			log.Printf("[WARN] read src data pack fail, %v", err)
-			break
+			return
 		}
 
 		if i == 1 {
@@ -133,7 +136,7 @@ func handleProxyRequest(localClient *net.TCPConn, serverAddr *net.TCPAddr, auth 
 			resp, err := proto.HandleHandshake(buf[0:nr])
 			if err != nil {
 				log.Printf("[WARN] handshake fail, %v", err)
-				break
+				return
 			}
 			handshake_buf_step1 = make([]byte, nr)
 			copy(handshake_buf_step1, buf[0:nr])
@@ -225,9 +228,43 @@ func handleProxyRequest(localClient *net.TCPConn, serverAddr *net.TCPAddr, auth 
 
 func GetProxyType(domain string) int {
 	// 1 代理 2 不代理
+	if domain[0:1] == ":" {
+		return 2
+	}
 
 	if strings.Contains(domain, "dingtalk.com") {
-		//if domain == "webalfa-cm10.dingtalk.com:443" {
+		return 2
+	} else if strings.Contains(domain, "dingtalkapps.com") {
+		return 2
+	} else if strings.Contains(domain, "aliyuncs.com") {
+		return 2
+	} else if strings.Contains(domain, "alicdn.com") {
+		return 2
+	} else if strings.Contains(domain, "aliapp.org") {
+		return 2
+	} else if strings.Contains(domain, "alipay.com") {
+		return 2
+	} else if strings.Contains(domain, "aliimg.com") {
+		return 2
+	} else if strings.Contains(domain, "aliwork.com") {
+		return 2
+	} else if strings.Contains(domain, "mmstat.com") {
+		return 2
+	} else if strings.Contains(domain, "taobao.com") {
+		return 2
+	} else if strings.Contains(domain, "taobao.net") {
+		return 2
+	} else if strings.Contains(domain, "tbcdn.cn") {
+		return 2
+	} else if strings.Contains(domain, "tmall.com") {
+		return 2
+	} else if strings.Contains(domain, "csdn.net") {
+		return 2
+	} else if strings.Contains(domain, "csdnimg.cn") {
+		return 2
+	} else if strings.Contains(domain, "cnblogs.com") {
+		return 2
+	} else if strings.Contains(domain, "googleapis.com") {
 		return 2
 	} else {
 		return 1
