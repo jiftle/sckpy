@@ -49,3 +49,7 @@ cmd/client/main.go  `客户端主启动程`
     	Input encryption type: (default "random")
 ```
 
+## Thanks
+
+[https://github.com/shikanon/socks5proxy](https://github.com/shikanon/socks5proxy)
+
