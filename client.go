@@ -35,20 +35,20 @@ func handleProxyRequest_Proxy(localClient *net.TCPConn, dstServer *net.TCPConn, 
 		if err != nil {
 			log.Printf("[ERRO] %010d, c->s exception, %v", proxyId, err)
 		}
-		log.Printf("%010d,---------- wg.Done client2server is done", proxyId)
+		log.Printf("[INFO] %010d,---------- wg.Done client2server is done", proxyId)
 	}()
 
 	// ------------> 远程得到的内容copy到源地址
 	go func() {
 		_, err := SecureCopy_Server2Client(dstServer, localClient, auth.Decrypt)
 		if err != nil {
-			log.Printf("[ERRO] %08d, s->c exception, %v", proxyId, err)
+			log.Printf("[ERRO] %010d, s->c exception, %v", proxyId, err)
 		}
-		log.Printf("%08d,---------- wg.Done server2client is done", proxyId)
+		log.Printf("[INFO] %010d,---------- wg.Done server2client is done", proxyId)
 	}()
 	wg.Wait()
 
-	log.Printf("%010d,--------------- Request_proxy proxy done --------------", proxyId)
+	log.Printf("[INFO] %010d,--------------- Request_proxy proxy done --------------", proxyId)
 }
 
 func Client(listenAddrString string, serverAddrString string, encrytype string, passwd string, recvHTTPProto string) {
@@ -87,11 +87,17 @@ func Client(listenAddrString string, serverAddrString string, encrytype string, 
 	}
 }
 
-func handleProxyRequest_Direct(localClient *net.TCPConn, serverAddr *net.TCPAddr, auth socks5Auth, recvHTTPProto string) {
+func handleProxyRequest_Direct(localClient *net.TCPConn, serverAddrString string, auth socks5Auth, recvHTTPProto string) {
+	serverAddr, err := net.ResolveTCPAddr("tcp", serverAddrString)
+	if err != nil {
+		log.Printf("[ERRO] resolve domain [%s] fail, %v", serverAddrString, err)
+		return
+	}
+
 	// connet real server
 	dstServer, err := net.DialTCP("tcp", nil, serverAddr)
 	if err != nil {
-		log.Printf("[ERRO] connect %s fail, %v", serverAddr.String(), err)
+		log.Printf("[ERRO] connect %s(%s) fail, %v", serverAddrString, serverAddr.String(), err)
 		localClient.Close()
 		return
 	}
@@ -100,7 +106,7 @@ func handleProxyRequest_Direct(localClient *net.TCPConn, serverAddr *net.TCPAddr
 
 	// 和远程端建立安全信道
 	wg := new(sync.WaitGroup)
-	wg.Add(2)
+	wg.Add(1)
 
 	// -----------> 本地的内容copy到远程端
 	go func() {
@@ -110,7 +116,7 @@ func handleProxyRequest_Direct(localClient *net.TCPConn, serverAddr *net.TCPAddr
 
 	// ------------> 远程得到的内容copy到源地址
 	go func() {
-		defer wg.Done()
+		//defer wg.Done()
 		SockCopy_S2C(dstServer, localClient)
 	}()
 	wg.Wait()
@@ -152,7 +158,7 @@ func handleProxyRequest(localClient *net.TCPConn, serverAddr *net.TCPAddr, auth 
 			// handshake
 			resp, err := proto.HandleHandshake(buf[0:nr])
 			if err != nil {
-				log.Printf("[WARN] handshake fail, %v", err)
+				//log.Printf("[WARN] handshake fail, %v", err)
 				return
 			}
 
@@ -177,7 +183,7 @@ func handleProxyRequest(localClient *net.TCPConn, serverAddr *net.TCPAddr, auth 
 
 			break
 		} else {
-			log.Printf("--fuck-|c2s|--[%02d]->len=%d, %v", i, nr, buf[:nr])
+			log.Printf("[ERRO] --fuck-|c2s|--[%02d]->len=%d, %v", i, nr, buf[:nr])
 		}
 	}
 
@@ -189,18 +195,11 @@ func handleProxyRequest(localClient *net.TCPConn, serverAddr *net.TCPAddr, auth 
 	} else if proxyType == 2 {
 		// ----------------- 直连 --------------------
 		log.Printf("[INFO] direct, %v", serverAddrString)
-		serverAddr, err := net.ResolveTCPAddr("tcp", serverAddrString)
-		if err != nil {
-			log.Printf("[ERRO] resolve domain [%s] fail, %v", serverAddrString, err)
-			return
-		}
-		//log.Printf("connect [%s]", serverAddr.String())
-		handleProxyRequest_Direct(src, serverAddr, auth, recvHTTPProto)
+		handleProxyRequest_Direct(src, serverAddrString, auth, recvHTTPProto)
 	} else if proxyType == 1 {
 		// ----------------- 代理 --------------------
 		log.Printf("[INFO] proxy, %v", serverAddrString)
 
-		//log.Printf("connect [%s]", serverAddr.String())
 		// connect sckpy server
 		dstServer, err := net.DialTCP("tcp", nil, serverAddr)
 		defer dstServer.Close()
@@ -218,27 +217,22 @@ func handleProxyRequest(localClient *net.TCPConn, serverAddr *net.TCPAddr, auth 
 		//log.Printf("s1, enc, %v", buf)
 		_, err = dstServer.Write(buf)
 		if err != nil {
-			if err == io.EOF {
-				log.Printf("[ERRO] close connect ,EOF")
-				localClient.Close()
-				return
-			}
 			log.Printf("[ERRO] handshake step1 to server fail, %v", err)
 			localClient.Close()
 			return
 		}
 		nr, err := dstServer.Read(buf)
-		if nr > 0 {
-			//log.Printf("c->s, [%02d], len=%d, %v", i, nr, buf[:nr])
-			auth.Decrypt(buf)
-			//log.Printf("c->s, [%02d], len=%d, %v", i, nr, buf[:nr])
-		}
 		if err != nil {
 			if err == io.EOF {
 				log.Printf("[ERRO] close connect ,EOF")
 			}
 			localClient.Close()
 			return
+		}
+		if nr > 0 {
+			//log.Printf("c->s, [%02d], len=%d, %v", i, nr, buf[:nr])
+			auth.Decrypt(buf)
+			//log.Printf("c->s, [%02d], len=%d, %v", i, nr, buf[:nr])
 		}
 
 		//step 2
@@ -253,15 +247,15 @@ func handleProxyRequest(localClient *net.TCPConn, serverAddr *net.TCPAddr, auth 
 			return
 		}
 		nr, err = dstServer.Read(buf)
-		if nr > 0 {
-			//log.Printf("c->s, [%02d], len=%d, %v", i, nr, buf[:nr])
-			auth.Decrypt(buf)
-			//log.Printf("c->s, [%02d], len=%d, %v", i, nr, buf[:nr])
-		}
 		if err != nil {
 			log.Printf("[ERRO] close connect, %v", err)
 			localClient.Close()
 			return
+		}
+		if nr > 0 {
+			//log.Printf("c->s, [%02d], len=%d, %v", i, nr, buf[:nr])
+			auth.Decrypt(buf)
+			//log.Printf("c->s, [%02d], len=%d, %v", i, nr, buf[:nr])
 		}
 		handleProxyRequest_Proxy(src, dstServer, auth, recvHTTPProto)
 	}
