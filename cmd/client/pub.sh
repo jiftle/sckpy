@@ -6,8 +6,8 @@
 # Description: 
 # -----------------------------------------------------------------
 echo "---> 编译"
-go build
+go build -o sckpyc
 
 echo "---> 发布"
-cp -f ./client /opt/my-apps/sckpy
+cp -f ./sckpyc /opt/my-apps/sckpy
 

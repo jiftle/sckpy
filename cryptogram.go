@@ -241,37 +241,35 @@ func SecureCopy_Server2Client(src io.ReadWriteCloser, dst io.ReadWriteCloser, se
 
 		// --------- read buf from client ---------
 		nr, er := src.Read(buf)
-		// ------------ encrypt data
-		secure(buf)
-
-		//if i == 1 {
-		//log.Printf("---|s2c|-[%02d]->len=%d, %v", i, nr, buf[:nr])
-		//} else if i == 2 {
-		//log.Printf("---|s2c|-[%02d]->len=%d, %v", i, nr, buf[:nr])
-		//}
-
-		if nr > 0 {
-			// -------------- write buf to server -----------
-			nw, ew := dst.Write(buf[0:nr])
-			if nw > 0 {
-				written += int64(nw)
-			}
-			if ew != nil {
-				err = ew
-				break
-			}
-			if nr != nw {
-				err = io.ErrShortWrite
-				break
-			}
-		}
 		if er != nil {
 			if er != io.EOF {
 				err = er
 			}
 			break
 		}
+		// ------------ encrypt data
+		secure(buf)
+		if nr > 0 {
+			// -------------- write buf to server -----------
+			nw, ew := dst.Write(buf[0:nr])
+			if ew != nil {
+				err = ew
+				//log.Printf("[ERRO] s->c, write to client fail, %v", err)
+				break
+			}
+			if nw > 0 {
+				written += int64(nw)
+			}
+			if nr != nw {
+				err = io.ErrShortWrite
+				//log.Printf("[ERRO] s->c, write to client fail, %v", err)
+				break
+			}
+		}
 	}
+
+	//log.Printf("[INFO] ------------ s to c, proxy done")
+
 	return written, err
 }
 
@@ -284,6 +282,12 @@ func SockCopy_C2S(src io.ReadWriteCloser, dst io.ReadWriteCloser) (written int64
 
 		// --------- read buf from client ---------
 		nr, er := src.Read(buf)
+		if er != nil {
+			if er != io.EOF {
+				err = er
+			}
+			break
+		}
 		if nr > 0 {
 			//log.Printf("c->s, [%03d], len=%d, %v", i, nr, buf[0:nr])
 			// -------------- write buf to server -----------
@@ -300,12 +304,6 @@ func SockCopy_C2S(src io.ReadWriteCloser, dst io.ReadWriteCloser) (written int64
 				break
 			}
 		}
-		if er != nil {
-			if er != io.EOF {
-				err = er
-			}
-			break
-		}
 	}
 
 	return written, err
@@ -320,6 +318,12 @@ func SockCopy_S2C(src io.ReadWriteCloser, dst io.ReadWriteCloser) (written int64
 
 		// --------- read buf from client ---------
 		nr, er := src.Read(buf)
+		if er != nil {
+			if er != io.EOF {
+				err = er
+			}
+			break
+		}
 		if nr > 0 {
 			//log.Printf("s->c, [%03d], len=%d, %v", i, nr, buf[0:nr])
 			// -------------- write buf to server -----------
@@ -336,12 +340,6 @@ func SockCopy_S2C(src io.ReadWriteCloser, dst io.ReadWriteCloser) (written int64
 				break
 			}
 		}
-		if er != nil {
-			if er != io.EOF {
-				err = er
-			}
-			break
-		}
 	}
 
 	return written, err
@@ -356,6 +354,14 @@ func SecureCopyNew_Client2Server(src io.ReadWriteCloser, dst io.ReadWriteCloser,
 
 		// --------- read buf from client ---------
 		nr, er := src.Read(buf)
+		if er != nil {
+			if er != io.EOF {
+				err = er
+			}
+
+			//log.Printf("[ERROR] EOF, c 2 s,  %v", err)
+			break
+		}
 		// ------------ encrypt data
 		secure(buf)
 		if nr > 0 {
@@ -370,15 +376,12 @@ func SecureCopyNew_Client2Server(src io.ReadWriteCloser, dst io.ReadWriteCloser,
 			}
 			if nr != nw {
 				err = io.ErrShortWrite
+
 				break
 			}
 		}
-		if er != nil {
-			if er != io.EOF {
-				err = er
-			}
-			break
-		}
 	}
+
+	//log.Printf("----------------- proxy done ---------------")
 	return written, err
 }
